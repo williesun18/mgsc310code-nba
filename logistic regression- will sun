@@ -1,0 +1,74 @@
+library(readr)
+library(dplyr)
+library(forcats)
+library(rsample)
+library(tibble)
+library(yardstick)
+library('ggplot2')
+library('plotROC')
+
+
+data <- read_csv('~/Desktop/mgsc_310/Final Project/all_seasons.csv')
+
+data <- data %>% select(-...1, -player_name, -team_abbreviation, -draft_number, -college, -draft_year)
+data$season_simple <- substr(data$season, 1, 4)
+data <- data %>% select(-season)
+data$draft_round <- as.factor(data$draft_round)
+data <- data %>% mutate(country_simple = fct_lump_n(country, n = 10))
+data <- data %>% select(-country)
+
+data$season_simple <- as.numeric(data$season_simple)
+data$points <- ifelse(data$pts > 25, 1,0)
+
+data_split <- initial_split(data, prop = 0.75)
+data_train <- training(data_split)
+data_test <- testing(data_split)
+
+dim(data)
+
+
+model <- glm(points ~ . -pts -points, family = binomial, data = data_train)
+
+
+scores_train <- predict(model, type = "response", newdata = data_train)
+
+
+results_train = tibble(
+  `true_class` = as.factor(data_train$points),
+  `pred_prod` = scores_train,
+  `pred_class` = as.factor(ifelse(scores_train > 0.5, 1, 0)),
+  `correct` = ifelse(true_class == pred_class, 1, 0)
+)
+
+
+scores_test <- predict(model, type = "response", newdata = data_test)
+
+results_test = tibble(
+  `true_class` = as.factor(data_test$points),
+  `pred_prod` = scores_test,
+  `pred_class` = as.factor(ifelse(scores_test > 0.5, 1, 0)),
+  `correct` = ifelse(true_class == pred_class, 1, 0)
+)
+
+
+
+
+mean(results_train$correct)
+mean(results_test$correct)
+
+
+
+cm_train <- conf_mat(results_train, 
+              truth = true_class,
+              estimate = pred_class)
+
+
+cm_test <- conf_mat(results_test, 
+                     truth = true_class,
+                     estimate = pred_class)
+
+cm_test
+autoplot(cm_test, "heatmap")
+
+autoplot(cm_train,"heatmap")
+
